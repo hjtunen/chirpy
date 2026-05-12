@@ -8,7 +8,59 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hjtunen/chirpy/internal/database"
 )
+
+func (cfg *apiConfig) handlerChirpCreate(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	param := parameters{}
+	err := decoder.Decode(&param)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Printf("Error decoding request body: %v", err)
+		return
+	}
+
+	if len(param.Body) > 140 {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
+		return
+	}
+
+	cleanedBody := removeBadWords(param.Body)
+
+	chirp, err := cfg.db.CreateChirp(req.Context(), database.CreateChirpParams{
+		UserID: param.UserID,
+		Body:   cleanedBody,
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error creating chirp: %v", err)
+		return
+	}
+
+	type Chirp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	jsonChirp := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusCreated, jsonChirp)
+}
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
