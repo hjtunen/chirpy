@@ -5,7 +5,48 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
+
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	param := parameters{}
+	err := decoder.Decode(&param)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Printf("Error decoding request body: %v", err)
+		return
+	}
+
+	user, err := cfg.db.CreateUser(req.Context(), param.Email)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error creating user: %v", err)
+		return
+	}
+
+	type User struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	jsonUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, http.StatusCreated, jsonUser)
+}
 
 func handlerReadiness(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")

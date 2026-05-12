@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -26,10 +27,25 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(payload))
 }
 func (cfg *apiConfig) handlerResetMetrics(w http.ResponseWriter, req *http.Request) {
+
+	if cfg.platform != "dev" {
+		respondWithError(w, http.StatusForbidden, "Resetting metrics is only allowed in dev environment", nil)
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
+	error := cfg.db.DeleteAllUsers(req.Context())
+	if error != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error deleting users: %v", error)
+		return
+	}
 
-	w.Write([]byte("Hits reset"))
+	type returnVals struct {
+		Message string `json:"message"`
+	}
+
+	respondWithJSON(w, http.StatusOK, returnVals{Message: "Metrics reset successfully"})
+
 }
