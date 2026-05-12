@@ -11,6 +11,36 @@ import (
 	"github.com/hjtunen/chirpy/internal/database"
 )
 
+func (cfg *apiConfig) handlerChirpList(w http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.ListChirps(req.Context())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error listing chirps: %v", err)
+		return
+	}
+
+	type Chirp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	jsonChirps := make([]Chirp, len(chirps))
+	for i, chirp := range chirps {
+		jsonChirps[i] = Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
+	}
+
+	respondWithJSON(w, http.StatusOK, jsonChirps)
+}
+
 func (cfg *apiConfig) handlerChirpCreate(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Body   string    `json:"body"`
