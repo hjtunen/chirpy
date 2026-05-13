@@ -42,10 +42,14 @@ func main() {
 	mux.Handle("/app/", http.StripPrefix("/app/", appHandler))
 
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerResetMetrics)
+
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpCreate)
-	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpList)
+	mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsList)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsOne)
+
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	server := &http.Server{

@@ -11,7 +11,35 @@ import (
 	"github.com/hjtunen/chirpy/internal/database"
 )
 
-func (cfg *apiConfig) handlerChirpList(w http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) handlerChirpsOne(w http.ResponseWriter, req *http.Request) {
+	id := req.PathValue("chirpID")
+	chirp, err := cfg.db.GetChirp(req.Context(), uuid.MustParse(id))
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		log.Printf("Error fetching chirp: %v", err)
+		return
+	}
+
+	type Chirp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	jsonChirp := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusOK, jsonChirp)
+}
+
+func (cfg *apiConfig) handlerChirpsList(w http.ResponseWriter, req *http.Request) {
 	chirps, err := cfg.db.ListChirps(req.Context())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
