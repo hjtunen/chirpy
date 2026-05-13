@@ -8,8 +8,59 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hjtunen/chirpy/internal/auth"
 	"github.com/hjtunen/chirpy/internal/database"
 )
+
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	param := parameters{}
+	err := decoder.Decode(&param)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Printf("Error decoding request body: %v", err)
+		return
+	}
+
+	user, err := cfg.db.GetUserByEmail(req.Context(), param.Email)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", nil)
+		return
+	}
+
+	match, err := auth.ComparePasswordHash(param.Password, user.HashedPassword)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error comparing password hash: %v", err)
+		return
+	}
+
+	if !match {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", nil)
+		return
+	}
+
+	type User struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	jsonUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, http.StatusOK, jsonUser)
+}
 
 func (cfg *apiConfig) handlerChirpsOne(w http.ResponseWriter, req *http.Request) {
 	id := req.PathValue("chirpID")
@@ -122,7 +173,8 @@ func (cfg *apiConfig) handlerChirpCreate(w http.ResponseWriter, req *http.Reques
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -134,7 +186,18 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	user, err := cfg.db.CreateUser(req.Context(), param.Email)
+	hashedPassword, err := auth.HashPassword(param.Password)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error hashing password: %v", err)
+		return
+	}
+
+	user, err := cfg.db.CreateUser(req.Context(), database.CreateUserParams{
+		Email:          param.Email,
+		HashedPassword: hashedPassword,
+	})
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Error creating user: %v", err)
